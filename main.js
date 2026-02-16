@@ -1,4 +1,4 @@
-const { app, BrowserWindow, shell, protocol, session } = require('electron');
+const { app, BrowserWindow, shell, protocol, session, ipcMain } = require('electron');
 const path = require('path');
 
 function isAllowed(url) {
@@ -37,14 +37,48 @@ function createWindow() {
     width: 1200,
     height: 800,
     title: "Fourvoid",
+    frame: false,
     autoHideMenuBar: true,
     webPreferences: {
-      contextIsolation: true
+      contextIsolation: true,
+      webviewTag: true,
+      preload: path.join(__dirname, 'preload.js')
     }
   });
+  ipcMain.on('minimize', () => {
+    BrowserWindow.getFocusedWindow().minimize();
+  });
 
+  ipcMain.on('close', () => {
+    BrowserWindow.getFocusedWindow().close();
+  });
+
+  ipcMain.on('maximize', () => {
+    const win = BrowserWindow.getFocusedWindow();
+    if (!win) return;
+
+    if (win.isMaximized()) {
+      win.unmaximize();   // restore
+    } else {
+      win.maximize();     // maximize
+    }
+  });
+  ipcMain.on("show-notification", (event, text) => {
+  new Notification({
+    title: "Fourvoid",
+    body: text
+  }).show()
+})
+
+  win.webContents.setWindowOpenHandler(({ url }) => {
+  if (!isAllowed(url)) {
+    shell.openExternal(url);
+    return { action: 'deny' };
+  }
+  return { action: 'allow' };
+});
   win.setMenu(null);
-  win.loadURL('https://fourvo.id');
+  win.loadFile('app.html');
 
   // Handle target="_blank" dan window.open
   win.webContents.setWindowOpenHandler(({ url }) => {
@@ -62,6 +96,14 @@ function createWindow() {
       shell.openExternal(url);
     }
   });
+  win.webContents.on('did-attach-webview', (event, webContents) => {
+
+  webContents.setWindowOpenHandler(({ url }) => {
+    shell.openExternal(url);
+    return { action: 'deny' };
+  });
+
+});
 }
 
 app.whenReady().then(createWindow);
