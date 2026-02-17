@@ -1,5 +1,7 @@
 const { app, BrowserWindow, shell, protocol, session, ipcMain } = require('electron');
 const path = require('path');
+const { autoUpdater } = require("electron-updater");
+const log = require("electron-log");
 
 function isAllowed(url) {
   try {
@@ -106,4 +108,42 @@ function createWindow() {
 });
 }
 
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+  createWindow();
+
+  autoUpdater.logger = log;
+  autoUpdater.logger.transports.file.level = "info";
+
+  autoUpdater.checkForUpdatesAndNotify();
+});
+
+// ===== EVENT LISTENER =====
+
+autoUpdater.on("checking-for-update", () => {
+  console.log("Checking for update...");
+});
+
+autoUpdater.on("update-available", () => {
+  dialog.showMessageBox({
+    type: "info",
+    title: "Update Available",
+    message: "Update Available, Downloading..."
+  });
+});
+
+autoUpdater.on("update-downloaded", () => {
+  dialog.showMessageBox({
+    type: "info",
+    title: "Update Ready",
+    message: "Restart Now?",
+    buttons: ["Restart", "Later"]
+  }).then(result => {
+    if (result.response === 0) {
+      autoUpdater.quitAndInstall();
+    }
+  });
+});
+
+autoUpdater.on("error", (err) => {
+  console.log("Update error:", err);
+});

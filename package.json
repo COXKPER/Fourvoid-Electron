@@ -1,10 +1,17 @@
 {
   "name": "fourvoid-electron",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Fourvoid Elctron Version",
   "main": "main.js",
   "build": {
     "appId": "com.bgunevoid.fourvoid",
+      "publish": [
+      {
+        "provider": "github",
+        "owner": "COXKPER",
+        "repo": "Fourvoid-Electron"
+      }
+    ],
     "productName": "Fourvoid",
     "files": [
       "**/*"
@@ -29,5 +36,8 @@
     "electron": "^40.4.1",
     "electron-builder": "^26.7.0"
   },
-  "dependencies": {}
+  "dependencies": {
+    "electron-log": "^5.4.3",
+    "electron-updater": "^6.7.3"
+  }
 }
