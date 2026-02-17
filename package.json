@@ -1,7 +1,7 @@
 {
   "name": "fourvoid-electron",
-  "version": "1.0.4",
-  "description": "Fourvoid Elctron Version",
+  "version": "26.02",
+  "description": "Access To Social Network",
   "main": "main.js",
   "build": {
     "appId": "com.bgunevoid.fourvoid",
