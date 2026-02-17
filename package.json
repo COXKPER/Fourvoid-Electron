@@ -1,6 +1,6 @@
 {
   "name": "fourvoid-electron",
-  "version": "26.02.1",
+  "version": "26.2.2",
   "description": "Access To Social Network",
   "main": "main.js",
   "build": {
