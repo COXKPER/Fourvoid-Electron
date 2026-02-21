@@ -1,18 +1,36 @@
-const { app, BrowserWindow, shell, protocol, session, ipcMain } = require('electron');
+const { app, BrowserWindow, shell, session, ipcMain, dialog, Notification } = require('electron');
 const path = require('path');
 const { autoUpdater } = require("electron-updater");
 const log = require("electron-log");
 
+let mainWindow;
+
+// ==========================
+// PROTOCOL (DEV + PROD)
+// ==========================
+if (process.defaultApp) {
+  // Dev mode
+  app.setAsDefaultProtocolClient(
+    'fourvoid',
+    process.execPath,
+    [path.resolve(process.argv[1])]
+  );
+} else {
+  // Production
+  app.setAsDefaultProtocolClient('fourvoid');
+}
+
+// ==========================
+// URL FILTER
+// ==========================
 function isAllowed(url) {
   try {
     const parsed = new URL(url);
 
-    // hanya https/http
     if (!['http:', 'https:'].includes(parsed.protocol)) {
       return false;
     }
 
-    // izinkan fourvo.id + semua subdomain
     return parsed.hostname === 'fourvo.id' ||
            parsed.hostname.endsWith('.fourvo.id');
 
@@ -21,21 +39,18 @@ function isAllowed(url) {
   }
 }
 
+// ==========================
+// CREATE WINDOW
+// ==========================
 function createWindow() {
 
   session.defaultSession.setPermissionRequestHandler(
     (webContents, permission, callback) => {
-
-      if (permission === 'notifications') {
-        // Bisa kamu bikin dialog sendiri
-        callback(true);  // allow
-      } else {
-        callback(false);
-      }
+      callback(permission === 'notifications');
     }
   );
 
-  const win = new BrowserWindow({
+  mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
     title: "Fourvoid",
@@ -47,43 +62,12 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js')
     }
   });
-  ipcMain.on('minimize', () => {
-    BrowserWindow.getFocusedWindow().minimize();
-  });
 
-  ipcMain.on('close', () => {
-    BrowserWindow.getFocusedWindow().close();
-  });
+  mainWindow.setMenu(null);
+  mainWindow.loadFile('app.html');
 
-  ipcMain.on('maximize', () => {
-    const win = BrowserWindow.getFocusedWindow();
-    if (!win) return;
-
-    if (win.isMaximized()) {
-      win.unmaximize();   // restore
-    } else {
-      win.maximize();     // maximize
-    }
-  });
-  ipcMain.on("show-notification", (event, text) => {
-  new Notification({
-    title: "Fourvoid",
-    body: text
-  }).show()
-})
-
-  win.webContents.setWindowOpenHandler(({ url }) => {
-  if (!isAllowed(url)) {
-    shell.openExternal(url);
-    return { action: 'deny' };
-  }
-  return { action: 'allow' };
-});
-  win.setMenu(null);
-  win.loadFile('app.html');
-
-  // Handle target="_blank" dan window.open
-  win.webContents.setWindowOpenHandler(({ url }) => {
+  // External link protection
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (!isAllowed(url)) {
       shell.openExternal(url);
       return { action: 'deny' };
@@ -91,34 +75,98 @@ function createWindow() {
     return { action: 'allow' };
   });
 
-  // Handle redirect / klik link biasa
-  win.webContents.on('will-navigate', (event, url) => {
+  mainWindow.webContents.on('will-navigate', (event, url) => {
     if (!isAllowed(url)) {
       event.preventDefault();
       shell.openExternal(url);
     }
   });
-  win.webContents.on('did-attach-webview', (event, webContents) => {
 
-  webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url);
-    return { action: 'deny' };
+  mainWindow.webContents.on('did-attach-webview', (event, webContents) => {
+    webContents.setWindowOpenHandler(({ url }) => {
+      shell.openExternal(url);
+      return { action: 'deny' };
+    });
   });
 
-});
+  return mainWindow;
 }
 
-app.whenReady().then(() => {
-  createWindow();
-
-  autoUpdater.logger = log;
-  autoUpdater.logger.transports.file.level = "info";
-
-  autoUpdater.checkForUpdatesAndNotify();
+// ==========================
+// WINDOW CONTROLS
+// ==========================
+ipcMain.on('minimize', () => {
+  BrowserWindow.getFocusedWindow()?.minimize();
 });
 
-// ===== EVENT LISTENER =====
+ipcMain.on('close', () => {
+  BrowserWindow.getFocusedWindow()?.close();
+});
 
+ipcMain.on('maximize', () => {
+  const win = BrowserWindow.getFocusedWindow();
+  if (!win) return;
+
+  win.isMaximized() ? win.unmaximize() : win.maximize();
+});
+
+ipcMain.on("show-notification", (event, text) => {
+  new Notification({
+    title: "Fourvoid",
+    body: text
+  }).show();
+});
+
+// ==========================
+// SINGLE INSTANCE + DEEPLINK
+// ==========================
+const gotTheLock = app.requestSingleInstanceLock();
+
+if (!gotTheLock) {
+  app.quit();
+} else {
+
+  app.on('second-instance', (event, commandLine) => {
+
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.focus();
+    }
+
+    const deepLink = commandLine.find(arg =>
+      arg.startsWith('fourvoid://')
+    );
+
+    if (deepLink && mainWindow) {
+      mainWindow.webContents.send('deep-link', deepLink);
+    }
+  });
+
+  app.whenReady().then(() => {
+
+    mainWindow = createWindow();
+
+    // Tangkap deep link saat first launch
+    const deepLink = process.argv.find(arg =>
+      arg.startsWith('fourvoid://')
+    );
+
+    if (deepLink) {
+      mainWindow.webContents.once('did-finish-load', () => {
+        mainWindow.webContents.send('deep-link', deepLink);
+      });
+    }
+
+    // Auto updater
+    autoUpdater.logger = log;
+    autoUpdater.logger.transports.file.level = "info";
+    autoUpdater.checkForUpdatesAndNotify();
+  });
+}
+
+// ==========================
+// AUTO UPDATER EVENTS
+// ==========================
 autoUpdater.on("checking-for-update", () => {
   console.log("Checking for update...");
 });

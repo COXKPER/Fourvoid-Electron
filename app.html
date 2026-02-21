@@ -134,6 +134,7 @@ html,body{
 #error button:hover{
   background:#3a3a3a;
 }
+
 .titlebar button{
   cursor: default;
 }
@@ -157,7 +158,7 @@ html,body{
   <div id="loading">Loading</div>
 
   <div id="error">
-    <h2>Failed to load application</h2>
+    <h2>⚠ Failed to load application</h2>
     <p>Connectivity Problem or Blocked by Your ISP.</p>
     <button id="retry">Retry</button>
   </div>
@@ -216,6 +217,50 @@ webview.addEventListener("did-attach", () => {
     }
     return { action: 'allow' };
   });
+});
+
+window.api.onDeepLink((url) => {
+  console.log("Deep link diterima:", url);
+
+  const parsed = new URL(url);
+  const action = parsed.hostname;
+  const param = parsed.pathname.replace(/^\//, "");
+
+  let targetURL = null;
+
+  switch (action) {
+
+    case "profile":
+      if (param)
+        targetURL = `https://fourvo.id/@${param}`;
+      break;
+
+    case "post":
+      if (param)
+        targetURL = `https://fourvo.id/notice/${param}`;
+      break;
+
+    case "dm":
+      if (param)
+        targetURL = `https://fourvo.id/statuses/${param}`;
+      break;
+
+    case "directory":
+      targetURL = `https://fourvo.id/directory`;
+      break;
+
+    case "tag":
+      if (param)
+        targetURL = `https://fourvo.id/tag/${param}`;
+      break;
+  }
+
+  if (targetURL) {
+    console.log("Redirect ke:", targetURL);
+    webview.loadURL(targetURL);
+  } else {
+    console.warn("Deep link tidak dikenali");
+  }
 });
 </script>
 

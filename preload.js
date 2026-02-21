@@ -6,5 +6,7 @@ contextBridge.exposeInMainWorld('api', {
   close: () => ipcRenderer.send('close'),
   notify: (text) => ipcRenderer.send("show-notification", text),
   openExternal: (url) => ipcRenderer.send("open-external", url)
+  onDeepLink: (callback) =>
+    ipcRenderer.on('deep-link', (event, url) => callback(url))
 });
 
